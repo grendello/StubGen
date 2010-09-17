@@ -3,6 +3,8 @@ Microsoft Visual Studio Solution File, Format Version 10.00
 # Visual Studio 2008
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StubGen", "StubGen.csproj", "{7FB90E1D-A889-4919-A947-69F59DEB8E67}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mono.Cecil", "lib\Mono.Cecil\Mono.Cecil.csproj", "{D68133BD-1E63-496E-9EDE-4FBDBF77B486}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x86 = Debug|x86
@@ -13,6 +15,10 @@ Global
 		{7FB90E1D-A889-4919-A947-69F59DEB8E67}.Debug|x86.Build.0 = Debug|x86
 		{7FB90E1D-A889-4919-A947-69F59DEB8E67}.Release|x86.ActiveCfg = Release|x86
 		{7FB90E1D-A889-4919-A947-69F59DEB8E67}.Release|x86.Build.0 = Release|x86
+		{D68133BD-1E63-496E-9EDE-4FBDBF77B486}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D68133BD-1E63-496E-9EDE-4FBDBF77B486}.Debug|x86.Build.0 = Debug|Any CPU
+		{D68133BD-1E63-496E-9EDE-4FBDBF77B486}.Release|x86.ActiveCfg = Release|Any CPU
+		{D68133BD-1E63-496E-9EDE-4FBDBF77B486}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(MonoDevelopProperties) = preSolution
 		StartupItem = StubGen.csproj
