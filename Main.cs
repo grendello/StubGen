@@ -26,6 +26,10 @@
 //  SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // 
 using System;
+using System.Collections.Generic;
+using System.IO;
+
+using Mono.Options;
 
 namespace StubGen
 {
@@ -33,7 +37,50 @@ namespace StubGen
 	{
 		public static void Main (string[] args)
 		{
-			Console.WriteLine ("Hello World!");
+			var sgopts = new StubGenOptions ();
+			var opts = new OptionSet () {
+				{ "o=|output-dir=", "Directory to generate classes in. Defaults to current directory", v => sgopts.OutputDir = v },
+				{ "no-header", "Do not put header with license in generated files", v => sgopts.NoHeader = true },
+				{ "l|license=", "Name of the license or path to a text file with license text (defaults to MIT/X11)", v => sgopts.LicenseName = v },
+				{ "a|author=", "Author name", v => sgopts.AuthorName = v },
+				{ "e|email=", "Author email", v => sgopts.AuthorEmail = v },
+				{ "c|copyright=", "Copyright holder", v => sgopts.CopyrightHolder = v },
+				{ "h|help|?", "Show this help screen", v => sgopts.ShowHelp = true }
+			};
+			
+			if (sgopts.ShowHelp)
+				ShowHelp (opts);
+			
+			List <string> assemblies = opts.Parse (args);
+			if (assemblies == null || assemblies.Count == 0)
+				ShowHelp (opts);
+			
+			foreach (string ap in assemblies)
+				ProcessAssembly (ap, sgopts);
+		}
+		
+		static void ProcessAssembly (string path, StubGenOptions opts)
+		{
+			string aname = Path.GetFileNameWithoutExtension (path);
+			Console.WriteLine ("Processing assembly {0}", aname);
+			string outdir = Path.Combine (opts.OutputDir, aname);
+			
+			try {
+				if (!Directory.Exists (outdir))
+					Directory.CreateDirectory (outdir);
+				Generator.Run (path, opts, outdir);
+			} catch (Exception ex) {
+				Console.WriteLine ("\tFailure. {0}", ex.Message);
+			}
+		}
+		
+		static void ShowHelp (OptionSet opts)
+		{
+			Console.WriteLine ("Usage: stubgen [OPTIONS] assembly_path [assembly_path ...]");
+			Console.WriteLine ();
+			Console.WriteLine ("Options:");
+			opts.WriteOptionDescriptions (Console.Out);
+			Environment.Exit (0);
 		}
 	}
 }

@@ -10,6 +10,7 @@
     <RootNamespace>StubGen</RootNamespace>
     <AssemblyName>StubGen</AssemblyName>
     <TargetFrameworkVersion>v3.5</TargetFrameworkVersion>
+    <StartupObject>StubGen.MainClass</StartupObject>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|x86' ">
     <DebugSymbols>true</DebugSymbols>
@@ -33,10 +34,17 @@
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
+    <Reference Include="System.Xml" />
+    <Reference Include="System.Core" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Main.cs" />
     <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="Options.cs" />
+    <Compile Include="Generator.cs" />
+    <Compile Include="StubGenOptions.cs" />
+    <Compile Include="Macro.cs" />
+    <Compile Include="Outline.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
@@ -44,5 +52,17 @@
       <Project>{D68133BD-1E63-496E-9EDE-4FBDBF77B486}</Project>
       <Name>Mono.Cecil</Name>
     </ProjectReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="resources\" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="resources\Apache2LicencePolicy.xml" />
+    <EmbeddedResource Include="resources\GPL2LicencePolicy.xml" />
+    <EmbeddedResource Include="resources\GPL3LicencePolicy.xml" />
+    <EmbeddedResource Include="resources\LGPL2-1LicencePolicy.xml" />
+    <EmbeddedResource Include="resources\LGPL3LicencePolicy.xml" />
+    <EmbeddedResource Include="resources\MITX11LicencePolicy.xml" />
+    <EmbeddedResource Include="resources\NewBSDLicencePolicy.xml" />
   </ItemGroup>
 </Project>
