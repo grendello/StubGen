@@ -71,21 +71,22 @@ namespace StubGen
 		{
 			sgopts = opts;
 			string license = GetLicenseBlock (opts.LicenseName);
+			bool overwrite = opts.OverwriteAll;
 			
 			ModuleDefinition module = ModuleDefinition.ReadModule (assemblyPath);
-			OutputAssemblyInfo (module, outDir, license);
+			OutputAssemblyInfo (module, outDir, license, overwrite);
 			foreach (TypeDefinition type in module.Types) {
 				if (type.IsNotPublic)
 					continue;
 			
 				try {
 					currentFilePath = FilePathForType (outDir, type);
-					if (File.Exists (currentFilePath)) {
+					if (!overwrite && File.Exists (currentFilePath)) {
 						currentFilePath = null;
 						continue;
 					}
 					
-					using (FileStream fs = File.OpenWrite (currentFilePath)) {
+					using (FileStream fs = File.Open (currentFilePath, FileMode.Create, FileAccess.Write)) {
 						using (var sw = new StreamWriter (fs, Encoding.UTF8)) {
 							WriteHeader (sw, license);
 							Outline.Run (currentFilePath, license, sw, type);
@@ -104,13 +105,13 @@ namespace StubGen
 			writer.WriteLine (ReplaceMacros (license));
 		}
 		
-		static void OutputAssemblyInfo (ModuleDefinition module, string outDir, string license)
+		static void OutputAssemblyInfo (ModuleDefinition module, string outDir, string license, bool overwrite)
 		{
 			currentFilePath = Path.Combine (outDir, "Assembly");
 			if (!Directory.Exists (currentFilePath))
 				Directory.CreateDirectory (currentFilePath);
 			currentFilePath = Path.Combine (currentFilePath, "AssemblyInfo.cs");
-			if (File.Exists (currentFilePath))
+			if (!overwrite && File.Exists (currentFilePath))
 				return;	
 			
 			// TODO: output TypeForwarded{From,To}

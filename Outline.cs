@@ -38,38 +38,61 @@ namespace StubGen
 	{
 		public static void Run (string filePath, string license, StreamWriter writer, TypeDefinition type)
 		{
-			string indent = "\t";
-			var usings = new List <string> ();
-			var sb = new StringBuilder ();
+			string ns = type.Namespace;
 			
-			usings.AddUsing ("System");
-			WriteType (sb, indent, usings, type);
+			if (String.IsNullOrEmpty (ns))
+				ns = null;
 			
-			if (usings.Count > 0) {
-				usings.Sort ();
+			if (ns != null)
+				Utils.Indent++;
+			try {
+				List <string> usings = Utils.Usings;
+				usings.Clear ();
+				var sb = new StringBuilder ();
+				
+				usings.AddUsing ("System");
+				WriteType (sb, usings, type);
+				
+				if (usings.Count > 0) {
+					usings.Sort ();
+					
+					foreach (string u in usings)
+						writer.WriteLine ("using {0};", u);
+					writer.WriteLine ();
+				}
+				if (ns != null) {
+					writer.WriteLine ("namespace {0}", ns);
+					writer.WriteLine ("{");
+				}
+				
+				writer.Write (sb.ToString ());
 			
-				foreach (string u in usings)
-					writer.WriteLine ("using {0};", u);
-				writer.WriteLine ();
+				if (ns != null)
+					writer.WriteLine ("}");
+			} finally {
+				if (ns != null)
+					Utils.Indent--;
 			}
-			writer.WriteLine ("namespace {0}", type.Namespace);
-			writer.WriteLine ("{");
-			
-			writer.Write (sb.ToString ());
-			
-			writer.WriteLine ("}");
 		}
 		
-		static void WriteType (StringBuilder sb, string indent, List <string> usings, TypeDefinition type)
+		static void WriteType (StringBuilder sb, List <string> usings, TypeDefinition type)
 		{
-			Action <StringBuilder, string, List <string>, TypeDefinition> typeWriter = null;
+			Action <StringBuilder, List <string>, TypeDefinition> typeWriter = null;
 			
-			sb.Append (indent);
+			// TODO: security attributes
+			if (type.HasCustomAttributes) {
+				foreach (CustomAttribute attr in type.CustomAttributes) {
+					sb.AppendIndent ("[");
+					sb.Append (Utils.FormatName (attr));
+					sb.AppendLine ("]");
+				}
+			}
+			sb.AppendIndent ();
 			
-			// TODO: format custom and security attributes
 			FormatTypeAttributes (sb, type);
 			if (type.IsEnum) {
 				sb.Append ("enum");
+				typeWriter = EnumWriter;
 			} else if (type.IsClass) {
 				sb.Append ("class");
 			} else if (type.IsInterface) {
@@ -81,8 +104,7 @@ namespace StubGen
 					sb.Append ("struct");
 			}
 			
-			// TODO: format generic type parameters
-			sb.AppendFormat (" {0}", type.Name);
+			sb.AppendFormat (" {0}", Utils.FormatName (type));
 			
 			bool haveColon = false;
 			bool first = true;
@@ -93,7 +115,7 @@ namespace StubGen
 				first = false;
 				
 				usings.AddUsing (tref.Namespace);
-				sb.Append (Utils.FormatGenericTypeName (tref));
+				sb.Append (Utils.FormatName (tref));
 			}
 			
 			if (type.HasInterfaces) {
@@ -106,16 +128,43 @@ namespace StubGen
 						sb.Append (", ");
 					
 					usings.AddUsing (i.Namespace);
-					sb.Append (Utils.FormatGenericTypeName (i));
+					sb.Append (Utils.FormatName (i));
 				}
 			}
+			
+			// TODO: output generic parameter constraints
+			
 			sb.AppendLine ();
-			sb.AppendFormat ("{0}{{{1}", indent, Generator.NewLine);
+			sb.AppendLineIndent ("{");
 			
-			if (typeWriter != null)
-				typeWriter (sb, indent + "\t", usings, type);
+			if (typeWriter != null) {
+				Utils.Indent++;
+				try {
+					typeWriter (sb, usings, type);
+				} finally {
+					Utils.Indent--;
+				}
+			}
 			
-			sb.AppendFormat ("{0}}}{1}", indent, Generator.NewLine);
+			sb.AppendLineIndent ("}");
+		}
+		
+		static void EnumWriter (StringBuilder sb, List <string> usings, TypeDefinition type)
+		{
+			if (!type.HasFields)
+				return;
+			
+			int count = type.Fields.Count;
+			foreach (FieldDefinition field in type.Fields) {
+				count--;
+				if (!field.HasConstant)
+					continue;
+				sb.AppendFormatIndent ("{0} = {1}", field.Name, field.Constant);
+				if (count > 0)
+					sb.Append (",");
+				
+				sb.AppendLine ();
+			}
 		}
 		
 		static void FormatTypeAttributes (StringBuilder sb, TypeDefinition type)

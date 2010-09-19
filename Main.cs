@@ -45,6 +45,7 @@ namespace StubGen
 				{ "a|author=", "Author name", v => sgopts.AuthorName = v },
 				{ "e|email=", "Author email", v => sgopts.AuthorEmail = v },
 				{ "c|copyright=", "Copyright holder", v => sgopts.CopyrightHolder = v },
+				{ "oa|overwrite-all", "Overwrite all files without prompting.", v => sgopts.OverwriteAll = true },
 				{ "h|help|?", "Show this help screen", v => sgopts.ShowHelp = true }
 			};
 			

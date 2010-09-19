@@ -27,6 +27,7 @@
 // 
 using System;
 using System.Collections.Generic;
+using System.Text;
 
 namespace StubGen
 {
@@ -34,11 +35,63 @@ namespace StubGen
 	{
 		public static void AddUsing (this List <string> usings, string ns)
 		{
-			if (usings == null)
+			if (usings == null || String.IsNullOrEmpty (ns))
 				return;
 			
 			if (!usings.Contains (ns))
 				usings.Add (ns);
+		}
+		
+		public static StringBuilder AppendFormatIndent (this StringBuilder sb, string format, params object[] args)
+		{
+			if (sb == null)
+				return null;
+			
+			sb.Append (Utils.IndentString);
+			sb.AppendFormat (format, args);
+			
+			return sb;
+		}
+		
+		public static StringBuilder AppendIndent (this StringBuilder sb)
+		{
+			if (sb == null)
+				return null;
+			
+			sb.Append (Utils.IndentString);
+			return sb;
+		}
+		
+		public static StringBuilder AppendIndent (this StringBuilder sb, string str)
+		{
+			if (sb == null)
+				return null;
+			
+			sb.Append (Utils.IndentString);
+			sb.Append (str);
+			return sb;
+		}
+		
+		public static StringBuilder AppendLineIndent (this StringBuilder sb)
+		{
+			if (sb == null)
+				return null;
+			
+			sb.Append (Utils.IndentString);
+			sb.AppendLine ();
+			
+			return sb;
+		}
+		
+		public static StringBuilder AppendLineIndent (this StringBuilder sb, string str)
+		{
+			if (sb == null)
+				return null;
+			
+			sb.Append (Utils.IndentString);
+			sb.AppendLine (str);
+			
+			return sb;
 		}
 	}
 }

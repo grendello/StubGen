@@ -37,10 +37,171 @@ namespace StubGen
 {
 	public class Utils
 	{
-		public static string FormatGenericTypeName (TypeReference type)
+		static string indentString = String.Empty;
+		static ulong oldIndent = 0;
+		static List <string> usings;
+		
+		public static ulong Indent = 0;
+		
+		public static string IndentString {
+			get {
+				if (oldIndent != Utils.Indent) {
+					oldIndent = Indent;
+					if (Indent == 0)
+						indentString = String.Empty;
+					else
+						indentString = new String ('\t', (int)Indent);
+				}
+				
+				return indentString;
+			}
+		}
+		
+		public static List <string> Usings {
+			get {
+				if (usings == null)
+					usings = new List<string> ();
+				
+				return usings;
+			}
+		}
+		
+		public static TypeDefinition ResolveType (TypeReference type)
 		{
-			// TODO: format generic type names
-			return type.Name;
+			if (type == null)
+				return null;
+			
+			TypeDefinition tdef;
+			try {
+				tdef = type.Resolve ();
+			} catch {
+				tdef = null;
+			}
+			
+			if (tdef == null)
+				Console.WriteLine ("\tUnresolved type '{0}'", type.FullName);
+				
+			return tdef;
+		}
+		
+		public static string FormatName (TypeReference type)
+		{
+			if (type == null)
+				return String.Empty;
+			
+			TypeDefinition tdef = ResolveType (type);
+			if (tdef == null)
+				return type.Name;
+			
+			if (tdef.HasGenericParameters) {
+				Collection <GenericParameter> gpcoll = tdef.GenericParameters;
+				string name = tdef.Name;
+				int idx = name.IndexOf ('`');
+				if (idx >= 0)
+					name = name.Substring (0, idx);
+				
+				var sb = new StringBuilder (name);
+				sb.Append (" <");
+				
+				bool first = true;
+				foreach (GenericParameter gp in gpcoll) {
+					if (!first)
+						sb.Append (", ");
+					else
+						first = false;
+
+					sb.Append (FormatName (gp));
+				}
+				
+				sb.Append (">");
+				return sb.ToString ();
+			}
+			
+			return tdef.Name;
+		}
+		
+		public static string FormatName (GenericParameter gp)
+		{
+			var sb = new StringBuilder ();
+			if (gp.HasCustomAttributes) {
+				sb.Append ("[");
+				bool first = true;
+				foreach (CustomAttribute attr in gp.CustomAttributes) {
+					if (!first)
+						sb.Append (", ");
+					else
+						first = false;
+					
+					sb.Append (FormatName (attr));
+				}
+				sb.Append ("] ");
+			}
+			
+			sb.Append (gp.Name);
+			return sb.ToString ();
+		}
+		
+		public static string FormatName (CustomAttribute attr)
+		{
+			if (attr == null)
+				return String.Empty;
+			
+			TypeReference type = attr.AttributeType;
+			string str = type.Namespace;
+			Usings.AddUsing (str);
+			
+			var sb = new StringBuilder ();	
+			str = type.Name;
+			if (str.EndsWith ("Attribute", StringComparison.Ordinal))
+				str = str.Substring (0, str.Length - 9);
+			
+			sb.Append (str);
+			bool first = true;
+			bool needParen = false;
+			if (attr.HasConstructorArguments) {
+				needParen = true;
+				sb.Append (" (");
+				foreach (CustomAttributeArgument arg in attr.ConstructorArguments) {
+					if (!first)
+						sb.Append (", ");
+					else
+						first = false;
+					sb.Append (FormatValue (arg.Value, arg.Type, usings));
+				}
+			}
+			
+			if (attr.HasFields) {
+				if (!needParen) {
+					needParen = true;
+					sb.Append (" (");
+				}
+				foreach (Mono.Cecil.CustomAttributeNamedArgument arg in attr.Fields) {
+					if (!first)
+						sb.Append (", ");
+					else
+						first = false;
+					sb.AppendFormat ("{0}={1}", arg.Name, FormatValue (arg.Argument.Value, arg.Argument.Type, usings));
+				}
+			}
+				
+			if (attr.HasProperties) {
+				if (!needParen) {
+						needParen = true;
+					sb.Append (" (");
+				}
+				foreach (Mono.Cecil.CustomAttributeNamedArgument arg in attr.Properties) {
+					if (!first)
+						sb.Append (", ");
+					else
+							first = false;
+					sb.AppendFormat ("{0}={1}", arg.Name, FormatValue (arg.Argument.Value, arg.Argument.Type, usings));
+				}
+			}
+				
+			if (needParen)
+				sb.Append (")");
+			
+			return sb.ToString ();
 		}
 		
 		public static string FormatValue (object v, TypeReference type, List <string> usings)
@@ -51,12 +212,7 @@ namespace StubGen
 			string ns = type.Namespace;
 			usings.AddUsing (ns);
 			
-			TypeDefinition tdef;
-			try {
-				tdef = type.Resolve ();
-			} catch {
-				tdef = null;
-			}
+			TypeDefinition tdef = ResolveType (type);
 			
 			string ret;
 			if (tdef != null && tdef.IsEnum && tdef.HasFields) {
@@ -76,6 +232,8 @@ namespace StubGen
 				bool first = true;
 				foreach (FieldDefinition fd in tdef.Fields) {
 					if (flags) {
+						// TODO: handle masks like AttributeUsage.All - the mask should not be used. If a value has more than one byte set
+						// it shall not be output
 						if (IsBitSet (v, fd.Constant)) {
 							if (first)
 								first = false;

@@ -40,6 +40,7 @@ namespace StubGen
 		public bool NoHeader { get; set; }
 		public string LicenseName { get; set; }
 		public string OutputDir { get; set; }
+		public bool OverwriteAll { get; set; }
 		
 		public string AuthorName { 
 			get {
