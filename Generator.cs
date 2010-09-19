@@ -62,7 +62,7 @@ namespace StubGen
 			{ new Macro { Name="Year", Handler=MacroYear } },
 		};
 		
-		static readonly string newline = Environment.NewLine;
+		public static readonly string NewLine = Environment.NewLine;
 		static Dictionary <string, string> licenseCache = new Dictionary<string, string> (StringComparer.OrdinalIgnoreCase);
 		static string currentFilePath;
 		static StubGenOptions sgopts;
@@ -88,7 +88,7 @@ namespace StubGen
 					using (FileStream fs = File.OpenWrite (currentFilePath)) {
 						using (var sw = new StreamWriter (fs, Encoding.UTF8)) {
 							WriteHeader (sw, license);
-							
+							Outline.Run (currentFilePath, license, sw, type);
 						}
 					}
 				} catch (Exception ex) {
@@ -113,6 +113,7 @@ namespace StubGen
 			if (File.Exists (currentFilePath))
 				return;	
 			
+			// TODO: output TypeForwarded{From,To}
 			using (FileStream fs = File.OpenWrite (currentFilePath)) {
 				using (var sw = new StreamWriter (fs, Encoding.UTF8)) {
 					WriteHeader (sw, license);
@@ -151,73 +152,64 @@ namespace StubGen
 					continue;
 				
 				str = type.Namespace;
-				if (!usings.Contains (str))
-					usings.Add (str);
+				usings.AddUsing (str);
 				
 				str = type.Name;
 				if (str.EndsWith ("Attribute", StringComparison.Ordinal))
 					str = str.Substring (0, str.Length - 9);
 				
-				sb.AppendFormat ("[assembly: {0} (", str);
+				sb.AppendFormat ("[assembly: {0}", str);
 				first = true;
+				bool needParen = false;
 				if (attr.HasConstructorArguments) {
+					needParen = true;
+					sb.Append (" (");
 					foreach (CustomAttributeArgument arg in attr.ConstructorArguments) {
 						if (!first)
 							sb.Append (", ");
 						else
 							first = false;
-						sb.Append (FormatValue (arg.Value, arg.Type, usings));
+						sb.Append (Utils.FormatValue (arg.Value, arg.Type, usings));
 					}
 				}
 		
 				if (attr.HasFields) {
+					if (!needParen) {
+						needParen = true;
+						sb.Append (" (");
+					}
 					foreach (Mono.Cecil.CustomAttributeNamedArgument arg in attr.Fields) {
 						if (!first)
 							sb.Append (", ");
 						else
 							first = false;
-						sb.AppendFormat ("{0}={1}", arg.Name, FormatValue (arg.Argument.Value, arg.Argument.Type, usings));
+						sb.AppendFormat ("{0}={1}", arg.Name, Utils.FormatValue (arg.Argument.Value, arg.Argument.Type, usings));
 					}
 				}
 				
 				if (attr.HasProperties) {
+					if (!needParen) {
+						needParen = true;
+						sb.Append (" (");
+					}
 					foreach (Mono.Cecil.CustomAttributeNamedArgument arg in attr.Properties) {
 						if (!first)
 							sb.Append (", ");
 						else
 							first = false;
-						sb.AppendFormat ("{0}={1}", arg.Name, FormatValue (arg.Argument.Value, arg.Argument.Type, usings));
+						sb.AppendFormat ("{0}={1}", arg.Name, Utils.FormatValue (arg.Argument.Value, arg.Argument.Type, usings));
 					}
 				}
 				
-				sb.AppendLine (")]");
+				if (needParen)
+					sb.Append (")");
+				sb.AppendLine ("]");
 			}
 		}
 		
 		static void OutputAssemblySecurityDeclarations (StringBuilder sb, List <string> usings, ModuleDefinition module)
 		{
-		}
-		
-		static string FormatValue (object v, TypeReference type, List <string> usings)
-		{	
-			if (v == null)
-				return "null";
-			
-			string ret;
-			Type t = v.GetType ();
-			string ns = t.Namespace;
-			
-			if (!usings.Contains (ns))
-				usings.Add (ns);
-			
-			ret = v.ToString ();
-			if (v is string)
-				return "\"" + ret + "\"";
-			
-			if (v is bool)
-				return ret.ToLower ();
-			
-			return ret;
+			// TODO: implement
 		}
 		
 		static string FilePathForType (string outDir, TypeDefinition type)
@@ -225,6 +217,7 @@ namespace StubGen
 			string dir = Path.Combine (outDir, type.Namespace);
 			if (!Directory.Exists (dir))
 				Directory.CreateDirectory (dir);
+
 			return Path.Combine (dir, type.Name + ".cs");
 		}
 		
@@ -272,7 +265,7 @@ namespace StubGen
 			var sb = new StringBuilder ();
 			
 			foreach (string l in lines)
-				sb.Append ("// " + l + newline);
+				sb.Append ("// " + l + NewLine);
 			
 			str = sb.ToString ();
 			licenseCache.Add (name, str);

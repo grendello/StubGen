@@ -45,6 +45,8 @@
     <Compile Include="StubGenOptions.cs" />
     <Compile Include="Macro.cs" />
     <Compile Include="Outline.cs" />
+    <Compile Include="Utils.cs" />
+    <Compile Include="MiscExtensions.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets" />
   <ItemGroup>
