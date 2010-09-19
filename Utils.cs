@@ -120,6 +120,21 @@ namespace StubGen
 			return tdef.Name;
 		}
 		
+		public static string FormatCustomAttributes (Collection <CustomAttribute> attributes)
+		{
+			if (attributes == null || attributes.Count == 0)
+				return String.Empty;
+		
+			var sb = new StringBuilder ();
+			foreach (CustomAttribute attr in attributes) {
+				sb.AppendIndent ("[");
+				sb.Append (FormatName (attr));
+				sb.AppendLine ("]");
+			}
+			
+			return sb.ToString ();
+		}
+		
 		public static string FormatName (GenericParameter gp)
 		{
 			var sb = new StringBuilder ();
@@ -135,9 +150,9 @@ namespace StubGen
 					sb.Append (FormatName (attr));
 				}
 				sb.Append ("] ");
-			}
-			
+			}	
 			sb.Append (gp.Name);
+			
 			return sb.ToString ();
 		}
 		
@@ -161,7 +176,7 @@ namespace StubGen
 			if (attr.HasConstructorArguments) {
 				needParen = true;
 				sb.Append (" (");
-				foreach (CustomAttributeArgument arg in attr.ConstructorArguments) {
+				foreach (Mono.Cecil.CustomAttributeArgument arg in attr.ConstructorArguments) {
 					if (!first)
 						sb.Append (", ");
 					else
@@ -202,6 +217,53 @@ namespace StubGen
 				sb.Append (")");
 			
 			return sb.ToString ();
+		}
+		
+		public static string FormatName (FieldDefinition field)
+		{
+			if (field == null)
+				return String.Empty;
+			
+			var attrs = new List <string> ();
+			var sb = new StringBuilder ();
+			sb.AppendIndent ();
+			if (field.IsPublic)
+				attrs.Add ("public");
+			else if (field.IsFamily)
+				attrs.Add ("protected");
+			else if (field.IsFamilyOrAssembly)
+				attrs.Add ("protected internal");
+			else if (field.IsAssembly)
+				attrs.Add ("internal");
+			
+			if (field.IsStatic)
+				attrs.Add ("static");
+			
+			if (field.IsInitOnly)
+				attrs.Add ("readonly");
+			
+			if (field.IsLiteral)
+				attrs.Add ("const");
+			
+			sb.Append (String.Join (" ", attrs.ToArray ()));
+			sb.Append (' ');
+			sb.Append (FormatName (field.FieldType));
+			sb.Append (' ');
+			sb.Append (field.Name);
+			
+			if (field.HasConstant) {
+				sb.Append (" = ");
+				sb.Append (FormatValue (field.Constant, field.FieldType));
+			}
+					
+			sb.AppendLine (";");
+			
+			return sb.ToString ();
+		}
+		
+		public static string FormatValue (object v, TypeReference type)
+		{
+			return FormatValue (v, type, Usings);
 		}
 		
 		public static string FormatValue (object v, TypeReference type, List <string> usings)

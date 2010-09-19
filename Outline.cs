@@ -80,13 +80,8 @@ namespace StubGen
 			Action <StringBuilder, List <string>, TypeDefinition> typeWriter = null;
 			
 			// TODO: security attributes
-			if (type.HasCustomAttributes) {
-				foreach (CustomAttribute attr in type.CustomAttributes) {
-					sb.AppendIndent ("[");
-					sb.Append (Utils.FormatName (attr));
-					sb.AppendLine ("]");
-				}
-			}
+			if (type.HasCustomAttributes)
+				sb.Append (Utils.FormatCustomAttributes (type.CustomAttributes));
 			sb.AppendIndent ();
 			
 			FormatTypeAttributes (sb, type);
@@ -95,8 +90,10 @@ namespace StubGen
 				typeWriter = EnumWriter;
 			} else if (type.IsClass) {
 				sb.Append ("class");
+				typeWriter = ClassWriter;
 			} else if (type.IsInterface) {
 				sb.Append ("interface");
+				typeWriter = InterfaceWriter;
 			} else if (type.IsValueType) {
 				if (type.FullName == "System.Delegate" || type.FullName == "System.MulticastDelegate")
 					sb.Append ("delegate");
@@ -147,6 +144,22 @@ namespace StubGen
 			}
 			
 			sb.AppendLineIndent ("}");
+		}
+		
+		static void InterfaceWriter (StringBuilder sb, List <string> usings, TypeDefinition type)
+		{
+			if (type.HasFields) {
+				foreach (FieldDefinition field in type.Fields)
+					sb.Append (Utils.FormatName (field));
+			}
+		}
+		
+		static void ClassWriter (StringBuilder sb, List <string> usings, TypeDefinition type)
+		{
+			if (type.HasFields) {
+				foreach (FieldDefinition field in type.Fields)
+					sb.Append (Utils.FormatName (field));
+			}
 		}
 		
 		static void EnumWriter (StringBuilder sb, List <string> usings, TypeDefinition type)
