@@ -80,6 +80,9 @@ namespace StubGen
 			Action <StringBuilder, List <string>, TypeDefinition> typeWriter = null;
 			
 			// TODO: security attributes
+			if (type.IsSerializable)
+				sb.AppendLineIndent ("[Serializable]");
+			
 			if (type.HasCustomAttributes)
 				sb.Append (Utils.FormatCustomAttributes (type.CustomAttributes));
 			sb.AppendIndent ();
