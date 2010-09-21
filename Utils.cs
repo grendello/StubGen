@@ -175,10 +175,12 @@ namespace StubGen
 			
 			string name = FormatGenericTypeName (tdef.Name);
 			var sb = new StringBuilder ();
+			
+			// TODO: handle nullable types gracefully (to get rid of Nullable <type> in favor of type?)
 			bool nullable = type.FullName.StartsWith ("System.Nullable`1", StringComparison.Ordinal);
-			if (type.IsPointer) {
+			if (type.IsPointer)
 				sb.Append (FormatName (type as PointerType));
-			} else
+			else
 				sb.Append (name);
 			
 			bool first = true;
@@ -466,6 +468,71 @@ namespace StubGen
 			return sb.ToString ();
 		}
 		
+		static void GatherAccessorInfo (MethodDefinition first, MethodDefinition second, out MethodDefinition moreVisible, out ushort moreVisibleAccessMask,
+			out ushort firstAccessMask, out ushort secondAccessMask)
+		{
+			moreVisible = first != null ? first : second;
+			
+			if (first != null && second != null) {
+				if ((first.Attributes & MethodAttributes.MemberAccessMask) != (second.Attributes & MethodAttributes.MemberAccessMask)) {
+					if (first.IsPublic)
+						moreVisible = first;
+					else if (second.IsPublic)
+						moreVisible = second;
+					else if (first.IsFamilyOrAssembly)
+						moreVisible = first;
+					else if (second.IsFamilyOrAssembly)
+						moreVisible = second;
+					else if ((first.IsAssembly || first.IsFamily))
+						moreVisible = first;
+					else if ((second.IsAssembly || second.IsAssembly))
+						moreVisible = second;
+				}
+			}
+			
+			moreVisibleAccessMask = (ushort) (moreVisible.Attributes & MethodAttributes.MemberAccessMask);
+			firstAccessMask = first != null ? (ushort) (first.Attributes & MethodAttributes.MemberAccessMask) : (ushort)0;
+			secondAccessMask = second != null ? (ushort) (second.Attributes & MethodAttributes.MemberAccessMask) : (ushort)0;
+		}
+		
+		public static string FormatName (EventDefinition ev)
+		{
+			if (ev == null)
+				return String.Empty;
+			
+			var sb = new StringBuilder ();
+			if (ev.HasCustomAttributes)
+				sb.Append (FormatCustomAttributes (ev.CustomAttributes));
+			
+			MethodDefinition adder = ev.AddMethod;
+			MethodDefinition remover = ev.RemoveMethod;
+			MethodDefinition accessor = null;
+			ushort adderAccessMask;
+			ushort removerAccessMask;
+			ushort evAccessMask;
+			
+			GatherAccessorInfo (adder, remover, out accessor, out evAccessMask, out adderAccessMask, out removerAccessMask);
+			
+			sb.AppendIndent (FormatAttributes (accessor));
+			sb.Append ("event ");
+			sb.Append (FormatName (ev.EventType));
+			sb.Append (' ');
+			sb.Append (ev.Name);
+			sb.Append (' ');
+			sb.Append ("{");
+			
+			sb.Append (FormatAccessor ("add", adder, adderAccessMask != evAccessMask));
+			sb.Append (FormatAccessor ("remove", remover, removerAccessMask != evAccessMask));
+			
+			if (ev.DeclaringType.IsInterface)
+				sb.AppendLine ();
+			
+			sb.AppendLineIndent ("}");
+			sb.AppendLine ();
+			
+			return sb.ToString ();
+		}
+		
 		public static string FormatName (PropertyDefinition prop)
 		{
 			if (prop == null)
@@ -477,28 +544,12 @@ namespace StubGen
 			
 			MethodDefinition getter = prop.GetMethod;
 			MethodDefinition setter = prop.SetMethod;
-			MethodDefinition accessor = getter != null ? getter : setter;
-			
-			if (getter != null && setter != null) {
-				if ((getter.Attributes & MethodAttributes.MemberAccessMask) != (setter.Attributes & MethodAttributes.MemberAccessMask)) {
-					if (getter.IsPublic)
-						accessor = getter;
-					else if (setter.IsPublic)
-						accessor = setter;
-					else if (getter.IsFamilyOrAssembly)
-						accessor = getter;
-					else if (setter.IsFamilyOrAssembly)
-						accessor = setter;
-					else if ((getter.IsAssembly || getter.IsFamily))
-						accessor = getter;
-					else if ((setter.IsAssembly || setter.IsAssembly))
-						accessor = setter;
-				}
-			}
-			
-			ushort propAccessMask = (ushort) (accessor.Attributes & MethodAttributes.MemberAccessMask);
-			ushort getterAccessMask = getter != null ? (ushort) (getter.Attributes & MethodAttributes.MemberAccessMask) : (ushort)0;
-			ushort setterAccessMask = setter != null ? (ushort) (setter.Attributes & MethodAttributes.MemberAccessMask) : (ushort)0;
+			MethodDefinition accessor = null;
+			ushort getterAccessMask;
+			ushort setterAccessMask;
+			ushort propAccessMask;
+				
+			GatherAccessorInfo (getter, setter, out accessor, out propAccessMask, out getterAccessMask, out setterAccessMask);
 			
 			sb.AppendIndent (FormatAttributes (accessor));
 			sb.Append (FormatName (prop.PropertyType));

@@ -155,7 +155,10 @@ namespace StubGen
 					sb.Append (Utils.FormatName (field));
 			}
 			
-			// TODO: process events
+			if (type.HasEvents) {
+				foreach (EventDefinition ev in type.Events)
+					sb.Append (Utils.FormatName (ev));
+			}
 			
 			if (type.HasProperties) {
 				foreach (PropertyDefinition prop in type.Properties)
@@ -177,7 +180,10 @@ namespace StubGen
 					sb.Append (Utils.FormatName (field));
 			}
 			
-			// TODO: process events
+			if (type.HasEvents) {
+				foreach (EventDefinition ev in type.Events)
+					sb.Append (Utils.FormatName (ev));
+			}
 			
 			if (type.HasProperties) {
 				foreach (PropertyDefinition prop in type.Properties)
