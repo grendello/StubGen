@@ -148,17 +148,45 @@ namespace StubGen
 		
 		static void InterfaceWriter (StringBuilder sb, List <string> usings, TypeDefinition type)
 		{
+			// TODO: process nested types
+			
 			if (type.HasFields) {
 				foreach (FieldDefinition field in type.Fields)
 					sb.Append (Utils.FormatName (field));
+			}
+			
+			// TODO: process events
+			
+			if (type.HasProperties) {
+				foreach (PropertyDefinition prop in type.Properties)
+					sb.Append (Utils.FormatName (prop));
+			}
+			
+			if (type.HasMethods) {
+				foreach (MethodDefinition method in type.Methods)
+					sb.Append (Utils.FormatName (method));
 			}
 		}
 		
 		static void ClassWriter (StringBuilder sb, List <string> usings, TypeDefinition type)
 		{
+			// TODO: process nested types
+			
 			if (type.HasFields) {
 				foreach (FieldDefinition field in type.Fields)
 					sb.Append (Utils.FormatName (field));
+			}
+			
+			// TODO: process events
+			
+			if (type.HasProperties) {
+				foreach (PropertyDefinition prop in type.Properties)
+					sb.Append (Utils.FormatName (prop));
+			}
+			
+			if (type.HasMethods) {
+				foreach (MethodDefinition method in type.Methods)
+					sb.Append (Utils.FormatName (method));
 			}
 		}
 		

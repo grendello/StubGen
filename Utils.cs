@@ -31,6 +31,7 @@ using System.Linq;
 using System.Text;
 
 using Mono.Cecil;
+using Mono.Cecil.Metadata;
 using Mono.Collections.Generic;
 
 namespace StubGen
@@ -84,26 +85,120 @@ namespace StubGen
 			return tdef;
 		}
 		
+		public static string FormatName (MetadataType type)
+		{
+			switch (type) {
+				case MetadataType.Boolean:
+					return "bool";
+					
+				case MetadataType.Char:
+					return "char";
+						
+				case MetadataType.SByte:
+					return "sbyte";
+					
+				case MetadataType.Byte:
+					return "byte";
+					
+				case MetadataType.Int16:
+					return "short";
+					
+				case MetadataType.UInt16:
+					return "ushort";
+					
+				case MetadataType.Int32:
+					return "int";
+						
+				case MetadataType.UInt32:
+					return "uint";
+						
+				case MetadataType.Int64:
+					return "long";
+					
+				case MetadataType.UInt64:
+					return "ulong";
+					
+				case MetadataType.Single:
+					return "float";
+					
+				case MetadataType.Double:
+					return "double";
+					
+				case MetadataType.String:
+					return "string";
+			
+				default:
+					return type.ToString ();
+			}
+		}
+		
+		public static string FormatGenericTypeName (string name)
+		{
+			if (String.IsNullOrEmpty (name))
+				return String.Empty;
+			
+			int idx = name.IndexOf ('`');
+			if (idx >= 0)
+				name = name.Substring (0, idx);
+			
+			return name;
+		}
+		
 		public static string FormatName (TypeReference type)
 		{
 			if (type == null)
 				return String.Empty;
+
+			if (type.IsGenericParameter)
+				return FormatName (type as GenericParameter);
+			
+			if (type.IsArray)
+				return FormatName (type as ArrayType);
+			
+			if (type.IsPrimitive)
+				return FormatName (type.MetadataType);
+			
+			switch (type.FullName) {
+				case "System.String":
+					return "string";
+					
+				case "System.Object":
+					return "object";
+					
+				case "System.Void":
+					return "void";
+			}
 			
 			TypeDefinition tdef = ResolveType (type);
 			if (tdef == null)
 				return type.Name;
 			
-			if (tdef.HasGenericParameters) {
-				Collection <GenericParameter> gpcoll = tdef.GenericParameters;
-				string name = tdef.Name;
-				int idx = name.IndexOf ('`');
-				if (idx >= 0)
-					name = name.Substring (0, idx);
-				
-				var sb = new StringBuilder (name);
+			string name = FormatGenericTypeName (tdef.Name);
+			var sb = new StringBuilder ();
+			bool nullable = type.FullName.StartsWith ("System.Nullable`1", StringComparison.Ordinal);
+			if (type.IsPointer) {
+				sb.Append (FormatName (type as PointerType));
+			} else
+				sb.Append (name);
+			
+			bool first = true;
+			
+			if (type.IsGenericInstance) {
+				GenericInstanceType git = type as GenericInstanceType;
 				sb.Append (" <");
+				foreach (TypeReference gtype in git.GenericArguments) {
+					if (!first)
+						sb.Append (", ");
+					else
+						first = false;
+
+					sb.Append (FormatName (gtype));
+				}
+				sb.Append (">");
+			} else if (tdef.HasGenericParameters) {
+				sb.Append (" <");
+				Collection <GenericParameter> gpcoll = tdef.GenericParameters;
 				
-				bool first = true;
 				foreach (GenericParameter gp in gpcoll) {
 					if (!first)
 						sb.Append (", ");
@@ -114,10 +209,21 @@ namespace StubGen
 				}
 				
 				sb.Append (">");
-				return sb.ToString ();
 			}
 			
-			return tdef.Name;
+			return sb.ToString ();
+		}
+		
+		public static string FormatName (ArrayType type)
+		{
+			// TODO: add support for multi-dimensional arrays
+			// TODO: add support for size spec
+			return FormatName (type.ElementType) + "[]";
+		}
+		
+		public static string FormatName (PointerType type)
+		{
+			return "unsafe " + FormatName (type.ElementType) + "*";
 		}
 		
 		public static string FormatCustomAttributes (Collection <CustomAttribute> attributes)
@@ -127,10 +233,39 @@ namespace StubGen
 		
 			var sb = new StringBuilder ();
 			foreach (CustomAttribute attr in attributes) {
+				if (attr.AttributeType.FullName == "System.ParamArrayAttribute")
+					continue;
 				sb.AppendIndent ("[");
 				sb.Append (FormatName (attr));
 				sb.AppendLine ("]");
 			}
+			
+			return sb.ToString ();
+		}
+
+		public static string FormatCustomAttributesOneLine (Collection <CustomAttribute> attributes)
+		{
+			if (attributes == null || attributes.Count == 0)
+				return String.Empty;
+		
+			bool first = true;
+			var sb = new StringBuilder ();
+			foreach (CustomAttribute attr in attributes) {
+				if (attr.AttributeType.FullName == "System.ParamArrayAttribute")
+					continue;
+				if (!first)
+					sb.Append (", ");
+				else {
+					sb.Append ("[");
+					first = false;
+				}
+				sb.Append (FormatName (attr));
+			}
+			if (sb.Length > 0)
+				sb.Append ("]");
+			
+			if (sb.Length == 0)
+				return String.Empty;
 			
 			return sb.ToString ();
 		}
@@ -139,18 +274,10 @@ namespace StubGen
 		{
 			var sb = new StringBuilder ();
 			if (gp.HasCustomAttributes) {
-				sb.Append ("[");
-				bool first = true;
-				foreach (CustomAttribute attr in gp.CustomAttributes) {
-					if (!first)
-						sb.Append (", ");
-					else
-						first = false;
-					
-					sb.Append (FormatName (attr));
-				}
-				sb.Append ("] ");
-			}	
+				sb.Append (FormatCustomAttributesOneLine (gp.CustomAttributes));
+				sb.Append (' ');
+			}
+			
 			sb.Append (gp.Name);
 			
 			return sb.ToString ();
@@ -223,10 +350,34 @@ namespace StubGen
 		{
 			if (field == null)
 				return String.Empty;
+		
+			if (field.HasCustomAttributes)
+				FormatCustomAttributes (field.CustomAttributes);
+			
+			
+			var sb = new StringBuilder ();
+			sb.AppendIndent (FormatAttributes (field));
+			sb.Append (' ');
+			sb.Append (FormatName (field.FieldType));
+			sb.Append (' ');
+			sb.Append (field.Name);
+			
+			if (field.HasConstant) {
+				sb.Append (" = ");
+				sb.Append (FormatValue (field.Constant, field.FieldType));
+			}
+					
+			sb.AppendLine (";");
+			
+			return sb.ToString ();
+		}
+		
+		public static string FormatAttributes (FieldDefinition field)
+		{
+			if (field == null)
+				return String.Empty;
 			
 			var attrs = new List <string> ();
-			var sb = new StringBuilder ();
-			sb.AppendIndent ();
 			if (field.IsPublic)
 				attrs.Add ("public");
 			else if (field.IsFamily)
@@ -245,18 +396,236 @@ namespace StubGen
 			if (field.IsLiteral)
 				attrs.Add ("const");
 			
-			sb.Append (String.Join (" ", attrs.ToArray ()));
-			sb.Append (' ');
-			sb.Append (FormatName (field.FieldType));
-			sb.Append (' ');
-			sb.Append (field.Name);
+			if (attrs.Count == 0)
+				return String.Empty;
 			
-			if (field.HasConstant) {
-				sb.Append (" = ");
-				sb.Append (FormatValue (field.Constant, field.FieldType));
+			return String.Join (" ", attrs.ToArray ()) + " ";
+		}
+		
+		public static string FormatAttributes (MethodDefinition method)
+		{
+			if (method == null || method.DeclaringType.IsInterface)
+				return String.Empty;
+			
+			var attrs = new List <string> ();
+			if (method.IsPublic)
+				attrs.Add ("public");
+			else if (method.IsFamily)
+				attrs.Add ("protected");
+			else if (method.IsFamilyOrAssembly)
+				attrs.Add ("protected internal");
+			else if (method.IsAssembly)
+				attrs.Add ("internal");
+			
+			if (method.IsFinal) {
+				if (!method.IsVirtual)
+					attrs.Add ("sealed");
+			} if (method.IsStatic)
+				attrs.Add ("static");
+			if (method.IsAbstract)
+				attrs.Add ("abstract");
+			else if (method.IsVirtual) {
+				if (method.IsNewSlot)
+					attrs.Add ("virtual");
+				else
+					attrs.Add ("override");
+			} else if (method.IsNewSlot)
+				attrs.Add ("new");
+			
+			if (attrs.Count == 0)
+				return String.Empty;
+			
+			return String.Join (" ", attrs.ToArray ()) + " ";
+		}
+		
+		public static string FormatAccessor (string name, MethodDefinition accessor, bool needsAttributes)
+		{
+			if (accessor == null || String.IsNullOrEmpty (name))
+				return String.Empty;
+			
+			var sb = new StringBuilder ();
+			Indent++;
+			try {
+				sb.AppendLineIndent ();
+				if (accessor.HasCustomAttributes)
+					sb.Append (FormatCustomAttributes (accessor.CustomAttributes));
+				if (needsAttributes) {
+					sb.AppendIndent (FormatAttributes (accessor));
+					sb.Append (' ');
+				} else
+					sb.AppendIndent ();
+				sb.Append (name);
+				if (accessor.IsAbstract || accessor.DeclaringType.IsInterface)
+					sb.Append (";");
+				else
+					sb.AppendLine (" { throw new NotImplementedException (); }");
+			} finally {
+				Indent--;
 			}
+			
+			return sb.ToString ();
+		}
+		
+		public static string FormatName (PropertyDefinition prop)
+		{
+			if (prop == null)
+				return String.Empty;
+		
+			var sb = new StringBuilder ();
+			if (prop.HasCustomAttributes)
+				sb.Append (FormatCustomAttributes (prop.CustomAttributes));
+			
+			MethodDefinition getter = prop.GetMethod;
+			MethodDefinition setter = prop.SetMethod;
+			MethodDefinition accessor = getter != null ? getter : setter;
+			
+			if (getter != null && setter != null) {
+				if ((getter.Attributes & MethodAttributes.MemberAccessMask) != (setter.Attributes & MethodAttributes.MemberAccessMask)) {
+					if (getter.IsPublic)
+						accessor = getter;
+					else if (setter.IsPublic)
+						accessor = setter;
+					else if (getter.IsFamilyOrAssembly)
+						accessor = getter;
+					else if (setter.IsFamilyOrAssembly)
+						accessor = setter;
+					else if ((getter.IsAssembly || getter.IsFamily))
+						accessor = getter;
+					else if ((setter.IsAssembly || setter.IsAssembly))
+						accessor = setter;
+				}
+			}
+			
+			ushort propAccessMask = (ushort) (accessor.Attributes & MethodAttributes.MemberAccessMask);
+			ushort getterAccessMask = getter != null ? (ushort) (getter.Attributes & MethodAttributes.MemberAccessMask) : (ushort)0;
+			ushort setterAccessMask = setter != null ? (ushort) (setter.Attributes & MethodAttributes.MemberAccessMask) : (ushort)0;
+			
+			sb.AppendIndent (FormatAttributes (accessor));
+			sb.Append (FormatName (prop.PropertyType));
+			sb.Append (' ');
+			
+			if (prop.HasParameters) {
+				sb.Append ("this [");
+				bool first = true;
+				foreach (ParameterDefinition p in prop.Parameters) {
+					if (!first)
+						sb.Append (", ");
+					else
+						first = false;
 					
-			sb.AppendLine (";");
+					sb.Append (FormatName (p));
+				}
+				sb.Append ("]");
+			} else
+				sb.Append (prop.Name);
+			
+			sb.Append (' ');
+			sb.Append ("{");
+			
+			sb.Append (FormatAccessor ("get", getter, getterAccessMask != propAccessMask));
+			sb.Append (FormatAccessor ("set", setter, setterAccessMask != propAccessMask));
+			if (prop.DeclaringType.IsInterface)
+				sb.AppendLine ();
+			
+			sb.AppendLineIndent ("}");
+			sb.AppendLine ();
+			
+			return sb.ToString ();
+		}
+		
+		public static string FormatName (MethodDefinition method)
+		{
+			if (method == null)
+				return String.Empty;
+			
+			bool special = method.IsSpecialName;
+			string name = method.Name;
+			
+			if (special && name != ".ctor" && name != ".cctor")
+				return String.Empty;
+			
+			var sb = new StringBuilder ();
+			if (method.HasCustomAttributes)
+				sb.Append (FormatCustomAttributes (method.CustomAttributes));
+			sb.AppendIndent (FormatAttributes (method));
+			sb.Append (FormatName (method.ReturnType));
+			sb.Append (' ');
+			
+			if (special && (name == ".ctor" || name == ".cctor"))
+				sb.Append (FormatGenericTypeName (method.DeclaringType.Name));
+			else if (name == "Finalize")
+				sb.Append ("~" + FormatGenericTypeName (method.DeclaringType.Name));
+			else
+				sb.Append (name);
+			
+			bool first = true;
+			if (method.HasGenericParameters) {
+				sb.Append ('<');
+				foreach (GenericParameter gp in method.GenericParameters) {
+					if (!first)
+						sb.Append (", ");
+					else
+						first = false;
+					sb.Append (FormatName (gp));
+				}
+				sb.Append ("> ");
+			}
+			
+			sb.Append (" (");
+			if (method.HasParameters) {
+				first = true;
+				foreach (ParameterDefinition p in method.Parameters) {
+					if (!first)
+						sb.Append (", ");
+					else
+						first = false;
+					sb.Append (FormatName (p));
+				}
+			}
+			sb.Append (")");
+			if (method.IsAbstract || method.DeclaringType.IsInterface)
+				sb.AppendLine (";");
+			else {
+				sb.AppendLine ();
+				sb.AppendLineIndent ("{");
+				try {
+					Indent++;
+					sb.AppendLineIndent ("throw new NotImplementedException ();");
+				} finally {
+					Indent--;
+				}
+				sb.AppendLineIndent ("}");
+			}
+			sb.AppendLine ();
+			
+			return sb.ToString ();
+		}
+		
+		public static string FormatName (ParameterDefinition parameter)
+		{
+			if (parameter == null)
+				return String.Empty;
+			
+			var sb = new StringBuilder ();
+			bool isParamArray = false;
+			if (parameter.HasCustomAttributes) {
+				if (parameter.CustomAttributes.First (attr => {
+					if (attr.AttributeType.FullName == "System.ParamArrayAttribute")
+						return true;
+					return false;
+				}) != null)
+					isParamArray = true;
+				if (isParamArray && parameter.CustomAttributes.Count > 1) {
+					sb.Append (FormatCustomAttributesOneLine (parameter.CustomAttributes));
+					sb.Append (' ');
+				}
+			}
+			
+			if (isParamArray)
+				sb.Append ("params ");
+			sb.Append (FormatName (parameter.ParameterType));
+			sb.Append (' ');
+			sb.Append (parameter.Name);
 			
 			return sb.ToString ();
 		}
