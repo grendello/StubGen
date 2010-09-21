@@ -150,6 +150,20 @@ namespace StubGen
 			return name;
 		}
 		
+		public static string GetTypeName (TypeReference type)
+		{
+			string fname = type.FullName;
+			int idx = fname.IndexOf ("/");
+			if (idx >= 0) {
+				idx = fname.LastIndexOf (".");
+				if (idx >= 0)
+					return fname.Substring (idx + 1).Replace ("/", ".");
+				else
+					return fname;
+			}
+			return type.Name;
+		}
+		
 		public static string FormatName (TypeReference type)
 		{
 			if (type == null)
@@ -181,9 +195,9 @@ namespace StubGen
 			
 			TypeDefinition tdef = ResolveType (type);
 			if (tdef == null)
-				return type.Name;
+				return GetTypeName (type);
 			
-			string name = FormatGenericTypeName (tdef.Name);
+			string name = FormatGenericTypeName (GetTypeName (tdef));
 			var sb = new StringBuilder ();
 			
 			// TODO: handle nullable types gracefully (to get rid of Nullable <type> in favor of type?)
@@ -417,8 +431,8 @@ namespace StubGen
 		public static string FormatAttributes (MethodDefinition method)
 		{
 			if (method == null || method.DeclaringType.IsInterface || IsExplicitImplementation (method))
-				return String.Empty;
-				
+				return String.Empty;	
+			
 			var attrs = new List <string> ();
 			if (method.IsPublic)
 				attrs.Add ("public");
@@ -432,22 +446,20 @@ namespace StubGen
 			if (method.IsFinal) {
 				if (!method.IsVirtual)
 					attrs.Add ("sealed");
-				return String.Empty;
-			} 
+			} else {
+				if (method.IsStatic)
+					attrs.Add ("static");
 			
-			if (method.IsStatic)
-				attrs.Add ("static");
-			
-			if (method.IsAbstract)
-				attrs.Add ("abstract");
-			else if (method.IsVirtual) {
-				if (method.IsNewSlot)
-					attrs.Add ("virtual");
-				else
-					attrs.Add ("override");
-			} else if (method.IsNewSlot)
-				attrs.Add ("new");
-			
+				if (method.IsAbstract)
+					attrs.Add ("abstract");
+				else if (method.IsVirtual) {
+					if (method.IsNewSlot)
+						attrs.Add ("virtual");
+					else
+						attrs.Add ("override");
+				} else if (method.IsNewSlot)
+					attrs.Add ("new");
+			}
 			if (attrs.Count == 0)
 				return String.Empty;
 			
@@ -937,7 +949,7 @@ namespace StubGen
 				ns = tdef.Namespace;
 				usings.AddUsing (ns);
 				
-				string typeName = tdef.Name.Replace ("/", ".");
+				string typeName = FormatName (tdef); //tdef.Name.Replace ("/", ".");
 				var sb = new StringBuilder ();
 				bool first = true;
 				object constant;

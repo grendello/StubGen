@@ -67,6 +67,17 @@ namespace StubGen
 		static string currentFilePath;
 		static StubGenOptions sgopts;
 		
+		static string AssemblyPresent (string name)
+		{
+			// TODO: should probably call gacutil
+			try {
+				Assembly.Load (name);
+				return "present";
+			} catch {
+				return "missing";
+			}
+		}
+		
 		public static void Run (string assemblyPath, StubGenOptions opts, string outDir)
 		{
 			sgopts = opts;
@@ -74,6 +85,17 @@ namespace StubGen
 			bool overwrite = opts.OverwriteAll;
 			
 			ModuleDefinition module = ModuleDefinition.ReadModule (assemblyPath);
+			if (module.HasAssemblyReferences) {
+				var refs = new List <string> ();
+				Console.WriteLine ("\tAssembly references:");
+				foreach (AssemblyNameReference aref in module.AssemblyReferences)
+					refs.Add (aref.FullName);
+				
+				refs.Sort (StringComparer.Ordinal);
+				foreach (string s in refs)
+					Console.WriteLine ("\t   [{0}] {1}", AssemblyPresent (s), s);
+			}
+			
 			OutputAssemblyInfo (module, outDir, license, overwrite);
 			foreach (TypeDefinition type in module.Types) {
 				if (type.IsNotPublic)
@@ -170,6 +192,7 @@ namespace StubGen
 							sb.Append (", ");
 						else
 							first = false;
+						
 						sb.Append (Utils.FormatValue (arg.Value, arg.Type, usings));
 					}
 				}
