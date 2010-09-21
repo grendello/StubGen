@@ -154,7 +154,11 @@ namespace StubGen
 		{
 			if (type == null)
 				return String.Empty;
-
+			
+			string ns = type.Namespace;
+			if (!String.IsNullOrEmpty (ns))
+				Usings.AddUsing (ns);
+			
 			if (type.IsGenericParameter)
 				return FormatName (type as GenericParameter);
 			
@@ -412,9 +416,9 @@ namespace StubGen
 		
 		public static string FormatAttributes (MethodDefinition method)
 		{
-			if (method == null || method.DeclaringType.IsInterface)
+			if (method == null || method.DeclaringType.IsInterface || IsExplicitImplementation (method))
 				return String.Empty;
-			
+				
 			var attrs = new List <string> ();
 			if (method.IsPublic)
 				attrs.Add ("public");
@@ -428,8 +432,12 @@ namespace StubGen
 			if (method.IsFinal) {
 				if (!method.IsVirtual)
 					attrs.Add ("sealed");
-			} if (method.IsStatic)
+				return String.Empty;
+			} 
+			
+			if (method.IsStatic)
 				attrs.Add ("static");
+			
 			if (method.IsAbstract)
 				attrs.Add ("abstract");
 			else if (method.IsVirtual) {
@@ -454,7 +462,7 @@ namespace StubGen
 			var sb = new StringBuilder ();
 			Indent++;
 			try {
-				sb.AppendLineIndent ();
+				sb.AppendLine ();
 				if (accessor.HasCustomAttributes)
 					sb.Append (FormatCustomAttributes (accessor.CustomAttributes));
 				if (needsAttributes) {
@@ -865,6 +873,7 @@ namespace StubGen
 			
 			if (isParamArray)
 				sb.Append ("params ");
+			
 			sb.Append (FormatName (parameter.ParameterType));
 			sb.Append (' ');
 			sb.Append (parameter.Name);
