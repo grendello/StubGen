@@ -41,6 +41,7 @@ namespace StubGen
 		public string LicenseName { get; set; }
 		public string OutputDir { get; set; }
 		public bool OverwriteAll { get; set; }
+		public bool Debug { get; set; }
 		
 		public string AuthorName { 
 			get {

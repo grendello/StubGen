@@ -46,6 +46,7 @@ namespace StubGen
 				{ "e|email=", "Author email", v => sgopts.AuthorEmail = v },
 				{ "c|copyright=", "Copyright holder", v => sgopts.CopyrightHolder = v },
 				{ "oa|overwrite-all", "Overwrite all files without prompting.", v => sgopts.OverwriteAll = true },
+				{ "d|debug", "Show more information on errors.", v => sgopts.Debug = true },
 				{ "h|help|?", "Show this help screen", v => sgopts.ShowHelp = true }
 			};
 			
@@ -72,6 +73,10 @@ namespace StubGen
 				Generator.Run (path, opts, outdir);
 			} catch (Exception ex) {
 				Console.WriteLine ("\tFailure. {0}", ex.Message);
+				if (opts.Debug) {
+					Console.WriteLine (ex.StackTrace);
+					Console.WriteLine ();
+				}
 			}
 		}
 		

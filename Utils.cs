@@ -38,6 +38,12 @@ namespace StubGen
 {
 	public class Utils
 	{
+		static readonly List <string> accessorPrefixes = new List<string> {
+			"get_",
+			"set_",
+			"add_",
+			"remove_"
+		};
 		static string indentString = String.Empty;
 		static ulong oldIndent = 0;
 		static List <string> usings;
@@ -584,28 +590,156 @@ namespace StubGen
 			return sb.ToString ();
 		}
 		
+		static string TranslateSpecialName (MethodDefinition method)
+		{
+			string name = method != null ? method.Name : String.Empty;
+			if (String.IsNullOrEmpty (name) || !name.StartsWith ("op_"))
+				return name;
+			
+			string ret;
+			switch (name) {
+				case "op_Explicit":
+				case "op_Implicit":
+					return name.Substring (3).ToLower () + " operator " + FormatName (method.ReturnType);
+					
+				case "op_UnaryPlus": 
+					ret = "+";
+					break;
+					
+				case "op_UnaryNegation": 
+					ret = "-";
+					break;
+					
+				case "op_LogicalNot": 
+					ret = "!";
+					break;
+					
+				case "op_OnesComplement": 
+					ret = "~";
+					break;
+					
+				case "op_Increment": 
+					ret = "++";
+					break;
+					
+				case "op_Decrement": 
+					ret = "--";
+					break;
+					
+				case "op_True": 
+					ret = "true";
+					break;
+					
+				case "op_False": 
+					ret = "false";
+					break;
+					
+				case "op_Addition": 
+					ret = "+";
+					break;
+					
+				case "op_Subtraction": 
+					ret = "-";
+					break;
+					
+				case "op_Multiply": 
+					ret = "*";
+					break;
+					
+				case "op_Division": 
+					ret = "/";
+					break;
+					
+				case "op_Modulus": 
+					ret = "%";
+					break;
+					
+				case "op_BitwiseAnd": 
+					ret = "&";
+					break;
+					
+				case "op_BitwiseOr": 
+					ret = "|";
+					break;
+					
+				case "op_ExclusiveOr": 
+					ret = "^";
+					break;
+					
+				case "op_LeftShift": 
+					ret = "<<";
+					break;
+					
+				case "op_RightShift": 
+					ret = ">>";
+					break;
+					
+				case "op_Equality": 
+					ret = "==";
+					break;
+					
+				case "op_Inequality": 
+					ret = "!=";
+					break;
+					
+				case "op_GreaterThan": 
+					ret = ">";
+					break;
+					
+				case "op_LessThan": 
+					ret = "<";
+					break;
+					
+				case "op_GreaterThanOrEqual": 
+					ret = ">=";
+					break;
+					
+				case "op_LessThanOrEqual": 
+					ret = "<=";
+					break;
+					
+				default:
+					ret = name;
+					break;
+			}
+			
+			return FormatName (method.ReturnType) + " operator " + ret;
+		}
+		
+		static bool IsAccessor (string name)
+		{
+			if (String.IsNullOrEmpty (name))
+				return false;
+			
+			foreach (string prefix in accessorPrefixes)
+				if (name.StartsWith (prefix, StringComparison.OrdinalIgnoreCase))
+					return true;
+			
+			return false;
+		}
+		
 		public static string FormatName (MethodDefinition method)
 		{
 			if (method == null)
 				return String.Empty;
 			
-			bool special = method.IsSpecialName;
 			string name = method.Name;
-			
-			if (special && name != ".ctor" && name != ".cctor")
-				return String.Empty;
-			
 			var sb = new StringBuilder ();
 			if (method.HasCustomAttributes)
 				sb.Append (FormatCustomAttributes (method.CustomAttributes));
 			sb.AppendIndent (FormatAttributes (method));
-			sb.Append (FormatName (method.ReturnType));
-			sb.Append (' ');
+			if (!method.IsSpecialName) {
+				sb.Append (FormatName (method.ReturnType));
+				sb.Append (' ');
+			} else if (IsAccessor (name))
+				return String.Empty;
 			
-			if (special && (name == ".ctor" || name == ".cctor"))
+			if (method.IsConstructor)
 				sb.Append (FormatGenericTypeName (method.DeclaringType.Name));
 			else if (name == "Finalize")
 				sb.Append ("~" + FormatGenericTypeName (method.DeclaringType.Name));
+			else if (method.IsSpecialName)
+				sb.Append (TranslateSpecialName (method));
 			else
 				sb.Append (name);
 			
@@ -686,6 +820,34 @@ namespace StubGen
 			return FormatValue (v, type, Usings);
 		}
 		
+		static int CountBits (object constant)
+		{
+			if (constant == null)
+				return -1;
+			
+			switch (Type.GetTypeCode (constant.GetType ())) {
+				case TypeCode.Byte:
+				case TypeCode.SByte:
+				case TypeCode.Int16:
+				case TypeCode.UInt16:
+				case TypeCode.Int32:
+				case TypeCode.UInt32:
+				case TypeCode.Int64:
+				case TypeCode.UInt64:
+					break;
+					
+				default:
+					return -1;
+			}
+			
+			ulong value = Convert.ToUInt64 (constant);
+			int nbits;
+			for (nbits = 0; value > 0; nbits++)
+				value &= value - 1;
+			
+			return nbits;
+		}
+		
 		public static string FormatValue (object v, TypeReference type, List <string> usings)
 		{	
 			if (v == null)
@@ -712,11 +874,16 @@ namespace StubGen
 				string typeName = tdef.Name.Replace ("/", ".");
 				var sb = new StringBuilder ();
 				bool first = true;
+				object constant;
+				int bits;
 				foreach (FieldDefinition fd in tdef.Fields) {
 					if (flags) {
-						// TODO: handle masks like AttributeUsage.All - the mask should not be used. If a value has more than one byte set
-						// it shall not be output
-						if (IsBitSet (v, fd.Constant)) {
+						constant = fd.Constant;
+						bits = CountBits (constant);
+						if (bits < 0 || bits > 1)
+							continue;
+						
+						if (IsBitSet (v, constant)) {
 							if (first)
 								first = false;
 							else
