@@ -462,6 +462,7 @@ namespace StubGen
 					sb.Append (' ');
 				} else
 					sb.AppendIndent ();
+				
 				sb.Append (name);
 				if (accessor.IsAbstract || accessor.DeclaringType.IsInterface)
 					sb.Append (";");
@@ -573,6 +574,23 @@ namespace StubGen
 					sb.Append (FormatName (p));
 				}
 				sb.Append ("]");
+			} else if (IsExplicitImplementation (accessor)) {
+				TypeReference iface;
+				MethodReference ifaceMethod;
+				
+				GetInfoForExplicitlyImplementedMethod (accessor, out iface, out ifaceMethod);
+				if (iface != null) {
+					sb.Append (iface.Name);
+					sb.Append ('.');
+					
+					string name = prop.Name;
+					string iname = iface.FullName + ".";
+					if (name.StartsWith (iname, StringComparison.OrdinalIgnoreCase))
+						sb.Append (name.Substring (iname.Length));
+					else
+						sb.Append (name);
+				} else
+					sb.Append (prop.Name);
 			} else
 				sb.Append (prop.Name);
 			
@@ -706,11 +724,19 @@ namespace StubGen
 			return FormatName (method.ReturnType) + " operator " + ret;
 		}
 		
-		static bool IsAccessor (string name)
+		static bool IsAccessor (MethodDefinition method)
 		{
+			string name = method != null ? method.Name : null;
 			if (String.IsNullOrEmpty (name))
 				return false;
 			
+			if (IsExplicitImplementation (method)) {
+				TypeReference iface;
+				MethodReference ifaceMethod;
+				
+				GetInfoForExplicitlyImplementedMethod (method, out iface, out ifaceMethod);
+				name = ifaceMethod.Name;
+			}
 			foreach (string prefix in accessorPrefixes)
 				if (name.StartsWith (prefix, StringComparison.OrdinalIgnoreCase))
 					return true;
@@ -718,6 +744,26 @@ namespace StubGen
 			return false;
 		}
 		
+		static bool IsExplicitImplementation (MethodDefinition method)
+		{
+			if (method == null)
+				return false;
+			
+			return method.IsPrivate && method.IsFinal && method.IsVirtual;
+		}
+		
+		public static void GetInfoForExplicitlyImplementedMethod (MethodDefinition method, out TypeReference iface, out MethodReference ifaceMethod)
+		{
+			iface = null;
+			ifaceMethod = null;
+			if (method.Overrides.Count != 1)
+				Console.WriteLine ("\tCould not determine interface type for explicitly-implemented interface member " + method.FullName);
+			else {
+				iface = method.Overrides [0].DeclaringType;
+				ifaceMethod = method.Overrides [0];
+			}
+		}
+
 		public static string FormatName (MethodDefinition method)
 		{
 			if (method == null)
@@ -731,7 +777,7 @@ namespace StubGen
 			if (!method.IsSpecialName) {
 				sb.Append (FormatName (method.ReturnType));
 				sb.Append (' ');
-			} else if (IsAccessor (name))
+			} else if (IsAccessor (method))
 				return String.Empty;
 			
 			if (method.IsConstructor)
@@ -740,7 +786,18 @@ namespace StubGen
 				sb.Append ("~" + FormatGenericTypeName (method.DeclaringType.Name));
 			else if (method.IsSpecialName)
 				sb.Append (TranslateSpecialName (method));
-			else
+			else if (IsExplicitImplementation (method)) {
+				TypeReference iface;
+				MethodReference ifaceMethod;
+				
+				GetInfoForExplicitlyImplementedMethod (method, out iface, out ifaceMethod);
+				if (iface != null) {
+					sb.Append (FormatName (iface));
+					sb.Append ('.');
+					sb.Append (ifaceMethod.Name);
+				} else
+					sb.Append (method.Name);
+			} else
 				sb.Append (name);
 			
 			bool first = true;
@@ -901,7 +958,7 @@ namespace StubGen
 			
 			ret = v.ToString ();
 			if (v is string)
-				return "\"" + ret + "\"";
+				return "\"" + ret.Replace ("\\", "\\\\") + "\"";
 			
 			if (v is bool)
 				return ret.ToLower ();
