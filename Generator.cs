@@ -87,20 +87,19 @@ namespace StubGen
 			ModuleDefinition module = ModuleDefinition.ReadModule (assemblyPath);
 			Console.Error.WriteLine ("\tTarget runtime: {0}", module.Runtime.Format ());
 			if (module.HasAssemblyReferences) {
-				/*var typesPerAsm = new Dictionary <string, ulong> (StringComparer.Ordinal);
-				string asmname;
-				uint cnt = 0;
+				var typesPerAsm = new SortedDictionary <string, ulong> (StringComparer.Ordinal);
+				AssemblyNameReference asmname;
 				foreach (ModuleDefinition m in AssemblyDefinition.ReadAssembly (assemblyPath).Modules) {
-					foreach (TypeReference tref in m.GetTypeReferences ().OnlyVisible (opts.IncludeNonPublic)) {
-						asmname = tref.Module.Assembly.FullName;
-						if (typesPerAsm.ContainsKey (asmname))
-							typesPerAsm [asmname]++;
+					foreach (TypeReference tref in m.GetTypeReferences ().OnlyVisible (true)) {
+						asmname = tref.Scope as AssemblyNameReference;
+						if (asmname == null)
+							continue;
+						if (typesPerAsm.ContainsKey (asmname.FullName))
+							typesPerAsm [asmname.FullName]++;
 						else
-							typesPerAsm [asmname] = 0;
-						cnt++;
+							typesPerAsm [asmname.FullName] = 1;
 					}
 				}
-				*/
 				
 				var refs = new List <string> ();
 				Console.Error.WriteLine ("\tAssembly references:");
@@ -108,12 +107,15 @@ namespace StubGen
 					refs.Add (aref.FullName);
 				
 				refs.Sort (StringComparer.Ordinal);
+				var unused = new List <string> ();
 				bool present;
-				/*ulong count;*/
+				ulong count;
 				foreach (string s in refs) {
 					present = AssemblyPresent (s);
-					/*if (!typesPerAsm.TryGetValue (s, out count))
-						count = 0;*/
+					if (!typesPerAsm.TryGetValue (s, out count))
+						count = 0;
+					if (count == 0)
+						unused.Add (s);
 					Console.Error.Write ("\t   [");
 					if (present)
 						Console.Error.Write ("present]");
@@ -124,6 +126,13 @@ namespace StubGen
 					}
 					Console.Error.WriteLine (" {0}", s);
 					Console.ResetColor ();
+				}
+				if (unused.Count > 0) {
+					Console.Error.WriteLine ();
+					Console.Error.WriteLine ("\tAssemblies referenced but not used by public APIs:");
+					unused.Sort ();
+					foreach (string s in unused)
+						Console.Error.WriteLine ("\t   {0}", s);
 				}
 			}
 			
