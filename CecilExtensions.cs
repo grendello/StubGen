@@ -63,6 +63,8 @@ namespace StubGen
 			return references.Where (reference => {
 				try {
 					tdef = reference.Resolve ();
+					if (tdef == null)
+						return false;
 				} catch {
 					return false;
 				}
