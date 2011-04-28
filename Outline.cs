@@ -28,6 +28,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 using Mono.Cecil;
@@ -36,7 +37,7 @@ namespace StubGen
 {
 	public class Outline
 	{
-		public static void Run (string filePath, string license, StreamWriter writer, TypeDefinition type)
+		public static void Run (string filePath, string license, StreamWriter writer, TypeDefinition type, StubGenOptions opts)
 		{
 			string ns = type.Namespace;
 			
@@ -51,13 +52,16 @@ namespace StubGen
 				var sb = new StringBuilder ();
 				
 				usings.AddUsing ("System");
-				WriteType (sb, usings, type);
+				WriteType (sb, usings, type, opts);
 				
 				if (usings.Count > 0) {
 					usings.Sort ();
 					
-					foreach (string u in usings)
+					foreach (string u in usings) {
+						if (ns != null && String.Compare (u, ns, StringComparison.Ordinal) == 0)
+							continue;
 						writer.WriteLine ("using {0};", u);
+					}
 					writer.WriteLine ();
 				}
 				if (ns != null) {
@@ -75,16 +79,16 @@ namespace StubGen
 			}
 		}
 		
-		static void WriteType (StringBuilder sb, List <string> usings, TypeDefinition type)
+		static void WriteType (StringBuilder sb, List <string> usings, TypeDefinition type, StubGenOptions opts)
 		{
-			Action <StringBuilder, List <string>, TypeDefinition> typeWriter = null;
+			Action <StringBuilder, List <string>, TypeDefinition, StubGenOptions> typeWriter = null;
 			
 			// TODO: security attributes
 			if (type.IsSerializable)
 				sb.AppendLineIndent ("[Serializable]");
 			
 			if (type.HasCustomAttributes)
-				sb.Append (Utils.FormatCustomAttributes (type.CustomAttributes));
+				sb.Append (type.CustomAttributes.Format ());
 			sb.AppendIndent ();
 			
 			FormatTypeAttributes (sb, type);
@@ -104,7 +108,7 @@ namespace StubGen
 					sb.Append ("struct");
 			}
 			
-			sb.AppendFormat (" {0}", Utils.FormatName (type));
+			sb.AppendFormat (" {0}", type.FormatName ());
 			
 			bool haveColon = false;
 			bool first = true;
@@ -115,20 +119,20 @@ namespace StubGen
 				first = false;
 				
 				usings.AddUsing (tref.Namespace);
-				sb.Append (Utils.FormatName (tref));
+				sb.Append (tref.FormatName ());
 			}
 			
 			if (type.HasInterfaces) {
-				if (!haveColon)
-					sb.Append (" : ");
-				foreach (TypeReference i in type.Interfaces) {
-					if (first)
+				foreach (TypeReference tr in type.Interfaces.OnlyVisible (opts.IncludeNonPublic)) {
+					if (first) {
+						if (!haveColon)
+							sb.Append (" : ");
 						first = false;
-					else
+					} else
 						sb.Append (", ");
 					
-					usings.AddUsing (i.Namespace);
-					sb.Append (Utils.FormatName (i));
+					usings.AddUsing (tr.Namespace);
+					sb.Append (tr.FormatName ());
 				}
 			}
 			
@@ -140,7 +144,7 @@ namespace StubGen
 			if (typeWriter != null) {
 				Utils.Indent++;
 				try {
-					typeWriter (sb, usings, type);
+					typeWriter (sb, usings, type, opts);
 				} finally {
 					Utils.Indent--;
 				}
@@ -149,67 +153,71 @@ namespace StubGen
 			sb.AppendLineIndent ("}");
 		}
 		
-		static void InterfaceWriter (StringBuilder sb, List <string> usings, TypeDefinition type)
+		static void InterfaceWriter (StringBuilder sb, List <string> usings, TypeDefinition type, StubGenOptions opts)
 		{
 			// TODO: process nested types
+			bool includePrivate = opts.IncludeNonPublic;
 			
 			if (type.HasFields) {
-				foreach (FieldDefinition field in type.Fields)
-					sb.Append (Utils.FormatName (field));
+				foreach (FieldDefinition field in type.Fields.OnlyVisible (includePrivate))
+					sb.Append (field.FormatName ());
 			}
 			
 			if (type.HasEvents) {
-				foreach (EventDefinition ev in type.Events)
-					sb.Append (Utils.FormatName (ev));
+				foreach (EventDefinition ev in type.Events.OnlyVisible (includePrivate))
+					sb.Append (ev.FormatName ());
 			}
 			
 			if (type.HasProperties) {
-				foreach (PropertyDefinition prop in type.Properties)
-					sb.Append (Utils.FormatName (prop));
+				foreach (PropertyDefinition prop in type.Properties.OnlyVisible (includePrivate))
+					sb.Append (prop.FormatName ());
 			}
 			
 			if (type.HasMethods) {
-				foreach (MethodDefinition method in type.Methods)
-					sb.Append (Utils.FormatName (method));
+				foreach (MethodDefinition method in type.Methods.OnlyVisible (includePrivate))
+					sb.Append (method.FormatName ());
 			}
 		}
 		
-		static void ClassWriter (StringBuilder sb, List <string> usings, TypeDefinition type)
+		static void ClassWriter (StringBuilder sb, List <string> usings, TypeDefinition type, StubGenOptions opts)
 		{
 			// TODO: process nested types
+			bool includePrivate = opts.IncludeNonPublic;
 			
 			if (type.HasFields) {
-				foreach (FieldDefinition field in type.Fields)
-					sb.Append (Utils.FormatName (field));
+				foreach (FieldDefinition field in type.Fields.OnlyVisible (includePrivate))
+					sb.Append (field.FormatName ());
 			}
 			
 			if (type.HasEvents) {
-				foreach (EventDefinition ev in type.Events)
-					sb.Append (Utils.FormatName (ev));
+				foreach (EventDefinition ev in type.Events.OnlyVisible (includePrivate))
+					sb.Append (ev.FormatName ());
 			}
 			
 			if (type.HasProperties) {
-				foreach (PropertyDefinition prop in type.Properties)
-					sb.Append (Utils.FormatName (prop));
+				foreach (PropertyDefinition prop in type.Properties.OnlyVisible (includePrivate))
+					sb.Append (prop.FormatName ());
 			}
 			
 			if (type.HasMethods) {
-				foreach (MethodDefinition method in type.Methods)
-					sb.Append (Utils.FormatName (method));
+				foreach (MethodDefinition method in type.Methods.OnlyVisible (includePrivate))
+					sb.Append (method.FormatName ());
 			}
 		}
 		
-		static void EnumWriter (StringBuilder sb, List <string> usings, TypeDefinition type)
+		static void EnumWriter (StringBuilder sb, List <string> usings, TypeDefinition type, StubGenOptions opts)
 		{
 			if (!type.HasFields)
 				return;
 			
+			bool includePrivate = opts.IncludeNonPublic;
+			
 			int count = type.Fields.Count;
-			foreach (FieldDefinition field in type.Fields) {
+			foreach (FieldDefinition field in type.Fields.OnlyVisible (includePrivate)) {
 				count--;
 				if (!field.HasConstant)
 					continue;
-				sb.AppendFormatIndent ("{0} = {1}", field.Name, field.Constant);
+				sb.AppendFormatIndent ("{0} = 0x{1:x2}", field.Name, field.Constant);
 				if (count > 0)
 					sb.Append (",");
 				

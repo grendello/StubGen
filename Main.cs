@@ -45,8 +45,9 @@ namespace StubGen
 				{ "a|author=", "Author name", v => sgopts.AuthorName = v },
 				{ "e|email=", "Author email", v => sgopts.AuthorEmail = v },
 				{ "c|copyright=", "Copyright holder", v => sgopts.CopyrightHolder = v },
-				{ "oa|overwrite-all", "Overwrite all files without prompting.", v => sgopts.OverwriteAll = true },
+				{ "f|force|overwrite-all", "Overwrite all files without prompting.", v => sgopts.OverwriteAll = true },
 				{ "d|debug", "Show more information on errors.", v => sgopts.Debug = true },
+				{ "p|private|non-public", "Include private/internal members in the outline.", v => sgopts.IncludeNonPublic = true },
 				{ "h|help|?", "Show this help screen", v => sgopts.ShowHelp = true }
 			};
 			
@@ -64,7 +65,7 @@ namespace StubGen
 		static void ProcessAssembly (string path, StubGenOptions opts)
 		{
 			string aname = Path.GetFileNameWithoutExtension (path);
-			Console.WriteLine ("Processing assembly {0}", aname);
+			Console.Error.WriteLine ("Processing assembly {0}", aname);
 			string outdir = Path.Combine (opts.OutputDir, aname);
 			
 			try {
@@ -72,10 +73,10 @@ namespace StubGen
 					Directory.CreateDirectory (outdir);
 				Generator.Run (path, opts, outdir);
 			} catch (Exception ex) {
-				Console.WriteLine ("\tFailure. {0}", ex.Message);
+				Console.Error.WriteLine ("\tFailure. {0}", ex.Message);
 				if (opts.Debug) {
-					Console.WriteLine (ex.StackTrace);
-					Console.WriteLine ();
+					Console.Error.WriteLine (ex.StackTrace);
+					Console.Error.WriteLine ();
 				}
 			}
 		}

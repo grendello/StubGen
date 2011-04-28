@@ -67,14 +67,14 @@ namespace StubGen
 		static string currentFilePath;
 		static StubGenOptions sgopts;
 		
-		static string AssemblyPresent (string name)
+		static bool AssemblyPresent (string name)
 		{
 			// TODO: should probably call gacutil
 			try {
 				Assembly.Load (name);
-				return "present";
+				return true;
 			} catch {
-				return "missing";
+				return false;
 			}
 		}
 		
@@ -85,15 +85,46 @@ namespace StubGen
 			bool overwrite = opts.OverwriteAll;
 			
 			ModuleDefinition module = ModuleDefinition.ReadModule (assemblyPath);
+			Console.Error.WriteLine ("\tTarget runtime: {0}", module.Runtime.Format ());
 			if (module.HasAssemblyReferences) {
+				/*var typesPerAsm = new Dictionary <string, ulong> (StringComparer.Ordinal);
+				string asmname;
+				uint cnt = 0;
+				foreach (ModuleDefinition m in AssemblyDefinition.ReadAssembly (assemblyPath).Modules) {
+					foreach (TypeReference tref in m.GetTypeReferences ().OnlyVisible (opts.IncludeNonPublic)) {
+						asmname = tref.Module.Assembly.FullName;
+						if (typesPerAsm.ContainsKey (asmname))
+							typesPerAsm [asmname]++;
+						else
+							typesPerAsm [asmname] = 0;
+						cnt++;
+					}
+				}
+				*/
+				
 				var refs = new List <string> ();
-				Console.WriteLine ("\tAssembly references:");
+				Console.Error.WriteLine ("\tAssembly references:");
 				foreach (AssemblyNameReference aref in module.AssemblyReferences)
 					refs.Add (aref.FullName);
 				
 				refs.Sort (StringComparer.Ordinal);
-				foreach (string s in refs)
-					Console.WriteLine ("\t   [{0}] {1}", AssemblyPresent (s), s);
+				bool present;
+				/*ulong count;*/
+				foreach (string s in refs) {
+					present = AssemblyPresent (s);
+					/*if (!typesPerAsm.TryGetValue (s, out count))
+						count = 0;*/
+					Console.Error.Write ("\t   [");
+					if (present)
+						Console.Error.Write ("present]");
+					else {
+						Console.ForegroundColor = ConsoleColor.Red;
+						Console.Error.Write ("missing]");
+						Console.ForegroundColor = ConsoleColor.DarkRed;
+					}
+					Console.Error.WriteLine (" {0}", s);
+					Console.ResetColor ();
+				}
 			}
 			
 			OutputAssemblyInfo (module, outDir, license, overwrite);
@@ -111,11 +142,13 @@ namespace StubGen
 					using (FileStream fs = File.Open (currentFilePath, FileMode.Create, FileAccess.Write)) {
 						using (var sw = new StreamWriter (fs, Encoding.UTF8)) {
 							WriteHeader (sw, license);
-							Outline.Run (currentFilePath, license, sw, type);
+							Outline.Run (currentFilePath, license, sw, type, opts);
 						}
 					}
 				} catch (Exception ex) {
 					Console.WriteLine ("\tFailure. Unable to generate file for type {0}. {1}", type.FullName, ex.Message);
+					if (opts.Debug)
+						Console.WriteLine (ex);
 				}
 			}
 		}
